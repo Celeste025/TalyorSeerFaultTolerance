@@ -1,0 +1,205 @@
+Full structure of model 'Octo':
+OctoModelPt(
+  (module): OctoModulePt(
+    (octo_transformer): OctoTransformerPt(
+      (task_tokenizers): ModuleDict(
+        (language): LanguageTokenizerPt(
+          (hf_model): T5EncoderModel(
+            (shared): Embedding(32128, 768)
+            (encoder): T5Stack(
+              (embed_tokens): Embedding(32128, 768)
+              (block): ModuleList(
+                (0): T5Block(
+                  (layer): ModuleList(
+                    (0): T5LayerSelfAttention(
+                      (SelfAttention): T5Attention(
+                        (q): Linear(in_features=768, out_features=768, bias=False)
+                        (k): Linear(in_features=768, out_features=768, bias=False)
+                        (v): Linear(in_features=768, out_features=768, bias=False)
+                        (o): Linear(in_features=768, out_features=768, bias=False)
+                        (relative_attention_bias): Embedding(32, 12)
+                      )
+                      (layer_norm): T5LayerNorm()
+                      (dropout): Dropout(p=0.1, inplace=False)
+                    )
+                    (1): T5LayerFF(
+                      (DenseReluDense): T5DenseActDense(
+                        (wi): Linear(in_features=768, out_features=3072, bias=False)
+                        (wo): Linear(in_features=3072, out_features=768, bias=False)
+                        (dropout): Dropout(p=0.1, inplace=False)
+                        (act): ReLU()
+                      )
+                      (layer_norm): T5LayerNorm()
+                      (dropout): Dropout(p=0.1, inplace=False)
+                    )
+                  )
+                )
+                (1-11): 11 x T5Block(
+                  (layer): ModuleList(
+                    (0): T5LayerSelfAttention(
+                      (SelfAttention): T5Attention(
+                        (q): Linear(in_features=768, out_features=768, bias=False)
+                        (k): Linear(in_features=768, out_features=768, bias=False)
+                        (v): Linear(in_features=768, out_features=768, bias=False)
+                        (o): Linear(in_features=768, out_features=768, bias=False)
+                      )
+                      (layer_norm): T5LayerNorm()
+                      (dropout): Dropout(p=0.1, inplace=False)
+                    )
+                    (1): T5LayerFF(
+                      (DenseReluDense): T5DenseActDense(
+                        (wi): Linear(in_features=768, out_features=3072, bias=False)
+                        (wo): Linear(in_features=3072, out_features=768, bias=False)
+                        (dropout): Dropout(p=0.1, inplace=False)
+                        (act): ReLU()
+                      )
+                      (layer_norm): T5LayerNorm()
+                      (dropout): Dropout(p=0.1, inplace=False)
+                    )
+                  )
+                )
+              )
+              (final_layer_norm): T5LayerNorm()
+              (dropout): Dropout(p=0.1, inplace=False)
+            )
+          )
+        )
+      )
+      (observation_tokenizers): ModuleDict(
+        (primary): ImageTokenizerPt(
+          (encoder_def): SmallStem16Pt(
+            (layers): ModuleList(
+              (0): Sequential(
+                (0): StdConvPt(6, 32, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+                (1): GroupNormPt(32, 32, eps=1e-05, affine=True)
+                (2): ReLU()
+              )
+              (1): Sequential(
+                (0): StdConvPt(32, 96, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+                (1): GroupNormPt(32, 96, eps=1e-05, affine=True)
+                (2): ReLU()
+              )
+              (2): Sequential(
+                (0): StdConvPt(96, 192, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+                (1): GroupNormPt(32, 192, eps=1e-05, affine=True)
+                (2): ReLU()
+              )
+              (3): Sequential(
+                (0): StdConvPt(192, 384, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+                (1): GroupNormPt(32, 384, eps=1e-05, affine=True)
+                (2): ReLU()
+              )
+            )
+            (embedding): ConvPt(384, 512, kernel_size=(1, 1), stride=(1, 1))
+          )
+        )
+        (wrist): ImageTokenizerPt(
+          (encoder_def): SmallStem16Pt(
+            (layers): ModuleList(
+              (0): Sequential(
+                (0): StdConvPt(6, 32, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+                (1): GroupNormPt(32, 32, eps=1e-05, affine=True)
+                (2): ReLU()
+              )
+              (1): Sequential(
+                (0): StdConvPt(32, 96, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+                (1): GroupNormPt(32, 96, eps=1e-05, affine=True)
+                (2): ReLU()
+              )
+              (2): Sequential(
+                (0): StdConvPt(96, 192, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+                (1): GroupNormPt(32, 192, eps=1e-05, affine=True)
+                (2): ReLU()
+              )
+              (3): Sequential(
+                (0): StdConvPt(192, 384, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+                (1): GroupNormPt(32, 384, eps=1e-05, affine=True)
+                (2): ReLU()
+              )
+            )
+            (embedding): ConvPt(384, 512, kernel_size=(1, 1), stride=(1, 1))
+          )
+        )
+      )
+      (block_transformer): BlockTransformerPt(
+        (transformer): TransformerPt(
+          (dropout): Dropout(p=0.0, inplace=False)
+          (encoder_blocks): ModuleList(
+            (0-11): 12 x Encoder1DBlockPt(
+              (layer_norm1): LayerNormPt((768,), eps=1e-06, elementwise_affine=True)
+              (self_attention): MultiheadAttentionPt(
+                (out_proj): NonDynamicallyQuantizableLinear(in_features=768, out_features=768, bias=True)
+              )
+              (dropout1): Dropout(p=0.0, inplace=False)
+              (layer_norm2): LayerNormPt((768,), eps=1e-06, elementwise_affine=True)
+              (mlp_block): MlpBlockPt(
+                (dense1): LinearPt(in_features=768, out_features=3072, bias=True)
+                (dense2): LinearPt(in_features=3072, out_features=768, bias=True)
+                (dropout1): Dropout(p=0.0, inplace=False)
+                (dropout2): Dropout(p=0.0, inplace=False)
+              )
+            )
+          )
+          (layer_norm): LayerNormPt((768,), eps=1e-06, elementwise_affine=True)
+        )
+      )
+      (task_projections): ModuleDict(
+        (task_language_projection): LinearPt(in_features=768, out_features=768, bias=True)
+      )
+      (obs_projections): ModuleDict(
+        (obs_primary_projection): LinearPt(in_features=512, out_features=768, bias=True)
+        (obs_wrist_projection): LinearPt(in_features=512, out_features=768, bias=True)
+      )
+    )
+    (heads): ModuleDict(
+      (action): DiffusionActionHeadPt(
+        (diffusion_model): ScoreActorPt(
+          (time_preprocess): FourierFeaturesPt()
+          (cond_encoder): MLPPt(
+            (layers): Sequential(
+              (0): LinearPt(in_features=32, out_features=64, bias=True)
+              (1): SiLU()
+              (2): LinearPt(in_features=64, out_features=32, bias=True)
+            )
+          )
+          (reverse_network): MLPResNetPt(
+            (activation): SiLU()
+            (linear1): LinearPt(in_features=828, out_features=256, bias=True)
+            (blocks): Sequential(
+              (0): MLPResNetBlockPt(
+                (act): SiLU()
+                (dropout): Dropout(p=0.0, inplace=False)
+                (layer_norm): LayerNormPt((256,), eps=1e-06, elementwise_affine=True)
+                (linear1): LinearPt(in_features=256, out_features=1024, bias=True)
+                (linear2): LinearPt(in_features=1024, out_features=256, bias=True)
+                (residual): Identity()
+              )
+              (1): MLPResNetBlockPt(
+                (act): SiLU()
+                (dropout): Dropout(p=0.0, inplace=False)
+                (layer_norm): LayerNormPt((256,), eps=1e-06, elementwise_affine=True)
+                (linear1): LinearPt(in_features=256, out_features=1024, bias=True)
+                (linear2): LinearPt(in_features=1024, out_features=256, bias=True)
+                (residual): Identity()
+              )
+              (2): MLPResNetBlockPt(
+                (act): SiLU()
+                (dropout): Dropout(p=0.0, inplace=False)
+                (layer_norm): LayerNormPt((256,), eps=1e-06, elementwise_affine=True)
+                (linear1): LinearPt(in_features=256, out_features=1024, bias=True)
+                (linear2): LinearPt(in_features=1024, out_features=256, bias=True)
+                (residual): Identity()
+              )
+            )
+            (linear2): LinearPt(in_features=256, out_features=28, bias=True)
+          )
+        )
+      )
+    )
+  )
+)
+
+Parameters count:
+Total params: 202,458,636
+Trainable params: 202,458,636
+Non-trainable params: 0
