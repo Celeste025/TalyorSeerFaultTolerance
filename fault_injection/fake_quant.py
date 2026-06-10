@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+import torch.nn.functional as F
 from functools import partial
 import pdb
 from torch.nn.modules.conv import Conv2d
@@ -12,6 +13,43 @@ import sys
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(BASE_DIR))
 from InjectionState import _injection_state
+
+@torch.no_grad()
+def generate_abft_mask(mask, err, abft_trunc_bit, block_size=32):
+    # 确保都在同一个 GPU
+    device = mask.device
+    err = err.to(device)
+    mask = mask.to(device)
+
+    threshold = 2 ** abft_trunc_bit
+    large_error_mask = mask & (err >= threshold)
+    if not large_error_mask.any():
+        return torch.zeros_like(mask, dtype=torch.bool)
+
+    B, H, W = large_error_mask.shape
+
+    # pad 成 block_size 的倍数
+    pad_h = (block_size - H % block_size) % block_size
+    pad_w = (block_size - W % block_size) % block_size
+    padded = F.pad(large_error_mask, (0, pad_w, 0, pad_h), value=False)
+    Hpad, Wpad = padded.shape[1:]
+
+    # 展开成 block grid
+    blocks = padded.view(B, Hpad // block_size, block_size, Wpad // block_size, block_size)
+
+    # 每个 block 的行/列是否有错
+    row_has_err = blocks.any(dim=4)  # (B, nH, block_size, nW)
+    col_has_err = blocks.any(dim=2)  # (B, nH, nW, block_size)
+
+    # 扩展为交叉 mask（完全向量化）
+    # 行 mask: (B, nH, block_size, nW, block_size)
+    row_mask = row_has_err.unsqueeze(-1).expand(-1, -1, -1, -1, block_size)
+    col_mask = col_has_err.unsqueeze(2).expand(-1, -1, block_size, -1, -1)
+    block_mask = row_mask & col_mask  # 元素级交叉
+
+    ABFT_mask = block_mask.reshape(B, Hpad, Wpad)
+    ABFT_mask = ABFT_mask[:, :H, :W]  # 去掉 padding
+    return ABFT_mask
 
 
 @torch.no_grad()
@@ -430,7 +468,21 @@ class NoisyW8A8Linear(W8A8Linear):
             self.output_quant_name = 'None'
             self.output_quant = identity
         self.err_fn = err_fn  #func
-    
+        ####保护相关参数
+        self.protect = _injection_state.global_args["protect"]
+        self.cache = None
+        if _injection_state.global_args["cache_order"] != -1:
+            self.enable_cache = True
+            self.cache_order = _injection_state.global_args["cache_order"] 
+            self.cache=None
+        else:
+            self.enable_cache = False
+        if self.protect.startswith("ABFT"):
+            self.ABFT_trunc_bit = int(_injection_state.global_args["protect"].split("_")[-1])  #eg "ABFT_17"
+        if self.protect.startswith("AD"):
+            self.AD_trunc_bit = int(_injection_state.global_args["protect"].split("_")[-1])
+
+
     @torch.no_grad()
     def inject_error(self, y, w_scales, a_scales, err_prob):
         # 克隆，避免直接修改输入
@@ -439,20 +491,19 @@ class NoisyW8A8Linear(W8A8Linear):
         y_div_a_scales = (y_not_quantized / a_scales).to(torch.float32)
         result = (y_div_a_scales / w_scales.view(1, 1, -1)).round().to(torch.int32)
 
+        #######################################
         # max_abs_int = torch.max(torch.abs(result)).item()
         # if max_abs_int > _injection_state.global_args['max_int']:
         #     print(f"max_abs_int changed to {max_abs_int}")
         #     _injection_state.global_args['max_int'] = max_abs_int
+        ########################################
 
         # === 每个元素独立随机选择翻转 bit ===
         bit = int(_injection_state.inject_bit)
         if bit == -1:  # -1表示random注入
             flip_bits = torch.randint(0, 31, result.shape, dtype=torch.int32, device=result.device)
-            #print("Randomly inject bit.")
         else:
             flip_bits = torch.full(result.size(), bit, dtype=torch.int32, device=result.device)
-            #print("Inject fixed bit ", bit)
-        # import pdb; pdb.set_trace()
         err = (1 << flip_bits).to(torch.int32)
 
         # === 按概率决定是否翻转 ===
@@ -464,14 +515,19 @@ class NoisyW8A8Linear(W8A8Linear):
         result_injected[mask] = torch.bitwise_xor(result[mask], err[mask])
 
         # === 异常值检测与清零 ===
-        if _injection_state.global_args['protect'] == "AD":
-            threshold = 2 ** 23
+        if self.protect.startswith("AD"):  #eg "AD_23"
+            threshold = 2 ** self.AD_trunc_bit    #flux取23，DiT取22较好
             abnormal_mask = result_injected.abs() >= threshold
             # 统计异常值数量
             num_abnormal = abnormal_mask.sum().item()
             if num_abnormal > 0:
                 result_injected[abnormal_mask] = 0  #异常值清零
-                # print(f"[Warning] Cleared {num_abnormal} abnormal values (|x| >= 2^23).")
+                # print(f"[Warning] Cleared {num_abnormal} abnormal values (|x| >= 2^{self.AD_trunc_bit}).")
+        
+        if self.protect.startswith("ABFT"):  #eg "ABFT_17"
+            self.ABFT_mask = generate_abft_mask(mask, err, self.ABFT_trunc_bit, block_size=_injection_state.global_args['abft_block_size'])
+            assert self.ABFT_mask.shape == result_injected.shape
+        ###############################
 
         # === 反量化回浮点 ===
         result_injected = result_injected.to(torch.float32) * a_scales * w_scales.view(1, 1, -1)
@@ -513,7 +569,46 @@ class NoisyW8A8Linear(W8A8Linear):
             q_y = self.output_quant(y_injected)  
         else:
             _, out_scale = self.output_quant(y_for_quant)  
-            q_y=torch.clamp(torch.round(y_injected/out_scale),-127,127)*out_scale ## quant according to out_scale
+            q_y = torch.clamp(torch.round(y_injected/out_scale),-127,127)*out_scale ## quant according to out_scale
+
+        #### 先做ABFT修正
+        if self.protect.startswith("ABFT"):
+            if self.cache is not None:
+                q_y[self.ABFT_mask] = self.cache[self.ABFT_mask] #用缓存值修正错误位置
+                # print(f"ABFT correcting {self.ABFT_mask.sum().item()} errors at step {_injection_state.current_step()}.")
+            else:
+                q_y[self.ABFT_mask] = 0  #无缓存则清零
+                # print(f"ABFT setting zero {self.ABFT_mask.sum().item()} errors at step {_injection_state.current_step()}.")
+
+        
+        #### 再基于修正的q_y保存cache   ##
+
+        if self.enable_cache:
+            if (_injection_state.current_step() % (_injection_state.global_args['cache_interval']) == 1) or (_injection_state.current_step() == 0):
+                ### 此处==1应该需要根据实际的起始enhance step调整
+                # print(f"step {_injection_state.current_step()}: updating cache.")
+                max_length = self.cache_order + 1
+                cache_quant = _injection_state.global_args['cache_quant']
+                if max_length > 1:
+                    print("暂不支持")
+                if cache_quant == 8:
+                    cache = q_y.detach().clone() 
+                elif (cache_quant < 8) and (cache_quant > 1):
+                    base_int = torch.clamp(torch.round(q_y / out_scale), -127, 127).to(torch.int32)
+                    # 8bit映射到xbit
+                    max_in = 127.0
+                    max_out = (2 ** (cache_quant - 1)) - 1
+                    # 缩放再取整
+                    compressed = torch.round(base_int.float() / max_in * max_out)
+                    compressed = torch.clamp(compressed, -max_out, max_out).to(torch.int32)
+                    # “扩展回”8bit区间（为了保持 scale 尺度不变）
+                    expanded = torch.round(compressed.float() / max_out * max_in).to(torch.int32)
+                    cache = expanded * out_scale  
+                    print(base_int[0,:10], expanded[0,:10])
+                    # import pdb;pdb.set_trace()
+                else:
+                    raise ValueError(f"Invalid cache_quant {cache_quant}")
+                self.cache = cache #覆盖式缓存
         return q_y
 
     @staticmethod
@@ -538,7 +633,8 @@ class NoisyW8A8Linear(W8A8Linear):
     def __repr__(self):
         return f'NoisyW8A8Linear({self.in_features}, {self.out_features}, bias={self.bias is not None}, weight_quant={self.weight_quant_name}, act_quant={self.act_quant_name}, output_quant={self.output_quant_name}, err_prob={self.err_prob})'
     
-    
+
+### 弃用（直接用NoisyW8A8Linear实现相关保护逻辑）
 class NoisyW8A8LinearProtected(NoisyW8A8Linear):
     def __init__(self, in_features, out_features, bias=True, act_quant='per_token', quantize_output=True, err_prob=0.0, accumulation_bitw=32, method=None, thre=(0.0, 0.0), err_fn=None):
         super().__init__(in_features, out_features, bias, act_quant, quantize_output, err_prob, accumulation_bitw, err_fn)
@@ -875,3 +971,45 @@ class NoisyW8A8MatMul(W8A8MatMul):
     
     def __repr__(self):
         return f'NoisyW8A8MatMul(act_quant={self.act_quant_name}, output_quant={self.output_quant_name}, err_prob={self.err_prob})'
+
+
+if __name__ == "__main__":
+    B, H, W = 2, 67, 67
+    block_size = 32
+    abft_trunc_bit = 4  # 阈值 = 16
+
+    # 模拟 mask：全 True
+    mask = torch.ones((B, H, W), dtype=torch.bool)
+
+    # 模拟 err：大部分小于阈值
+    err = torch.randint(0, 10, (B, H, W)).float()
+
+    # 手动插入几个“严重错误”
+    err[0, 10, 20] = 40
+    err[0, 12, 23] = 35
+    err[0, 45, 50] = 60
+    err[1, 5, 5] = 100
+    err[1, 30, 30] = 25
+    err[1, 5, 10] = 80
+    err[1, 31, 31] = 45
+    err[1, 64, 64] = 100
+    err[1, 65, 65] = 100
+    err[1, 10, 65] = 100
+
+    # 生成 ABFT 掩码
+    ABFT_mask = generate_abft_mask(mask, err, abft_trunc_bit, block_size)
+
+    # 打印原始大错坐标
+    large_error_mask = mask & (err >= 2 ** abft_trunc_bit)
+    large_error_coords = torch.nonzero(large_error_mask, as_tuple=False)
+    print("=== 大错实际坐标 ===")
+    for coord in large_error_coords:
+        print(tuple(coord.tolist()))
+
+    # 打印 ABFT 掩码坐标
+    abft_coords = torch.nonzero(ABFT_mask, as_tuple=False)
+    print("\n=== ABFT 掩码标记坐标(行×列交叉) ===")
+    for coord in abft_coords:
+        print(tuple(coord.tolist()))
+
+    print(f"\n总标记数: {abft_coords.shape[0]} (覆盖率应 >= 大错数)")

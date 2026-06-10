@@ -1,13 +1,17 @@
 
 # ignore experiment data (large)
 results/
+SD15/results/
+SD15/results_bench/
+SD15/results_protect/
+PixArt/results/
 TaylorSeer-DiT/results/
-TaylorSeer-DiT/pretrained_models
-TaylorSeers-Diffusers/taylorseer_flux/results
-TaylorSeers-Diffusers/taylorseer_flux/results_layers
-TaylorSeers-Diffusers/taylorseer_flux/results_layers2
-TaylorSeers-Diffusers/taylorseer_flux/results_protect
-evaluation/datasets
+TaylorSeer-DiT/pretrained_models/
+TaylorSeers-Diffusers/taylorseer_flux/results/
+TaylorSeers-Diffusers/taylorseer_flux/results_layers/
+TaylorSeers-Diffusers/taylorseer_flux/results_layers2/
+TaylorSeers-Diffusers/taylorseer_flux/results_protect/
+evaluation/datasets/
 
 .DS_Store
 hf_download/

@@ -120,12 +120,13 @@ class DiTBlock(nn.Module):
         )
 
     def forward(self, x, c, current, cache_dic):
+        # import pdb;pdb.set_trace()
         B, N, C = x.shape  # 获取输入 x 的 shape
 
         # FLOPs 初始化
         flops = 0
         test_FLOPs = cache_dic.get('test_FLOPs', False)  # 检查是否启用 FLOPs 测量
-
+        # print(current['type'])
         if current['type'] == 'full':  # Force Activation: Compute all tokens and save them in cache
             
             # AdaLN Modulation

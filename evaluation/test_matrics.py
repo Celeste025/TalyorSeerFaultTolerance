@@ -94,7 +94,7 @@ def evaluate_folder(images_dir, ref_folder=None, do_clip=True, do_image_reward=T
             if not force_recompute and "lpips_score" in existing_metrics:
                 print(f"跳过 LPIPS（已有结果: {existing_metrics['lpips_score']:.4f}）")
             else:
-                avg_score = compute_lpips_score_folder(images_dir, ref_folder, detail=detail)
+                avg_score = compute_lpips_score_folder(ref_folder=ref_folder, gen_folder=images_dir, detail=detail)
                 print(f"平均 LPIPS score: {avg_score:.4f}")
                 results_dict["lpips_score"] = avg_score
 

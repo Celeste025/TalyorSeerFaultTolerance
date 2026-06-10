@@ -30,11 +30,12 @@ def compute_image_reward_one_image(img_path, prompt=None):
         score = model.score(prompt, img_path)
     return score
 
-def compute_image_reward_folder(folder_path, detail=False):
+def compute_image_reward_folder(folder_path, detail=False, score_per_image=True):
     """
     批量计算文件夹下图片的 ImageReward 分数，自动加载模型
     返回平均分
     """
+    filename_score_pair = {}
     scores = []
     for filename in os.listdir(folder_path):
         if filename.lower().endswith((".png", ".jpg", ".jpeg", ".webp")):
@@ -42,6 +43,7 @@ def compute_image_reward_folder(folder_path, detail=False):
             try:
                 score = compute_image_reward_one_image(img_path)
                 scores.append(score)
+                filename_score_pair[filename] = score
                 if detail:
                     print(f"{filename}: {score:.2f}")
             except Exception as e:
@@ -50,7 +52,12 @@ def compute_image_reward_folder(folder_path, detail=False):
     if not scores:
         print("Warning: No valid images found in folder.")
         return None
-
+    if score_per_image:
+        score_file = os.path.join(folder_path, "image_reward_scores.txt")
+        with open(score_file, 'w', encoding='utf-8') as f:
+            for filename, score in filename_score_pair.items():
+                if score is not None:
+                    f.write(f"{filename}: {score:.6f}\n")
     avg_score = sum(scores) / len(scores)
     return avg_score
 

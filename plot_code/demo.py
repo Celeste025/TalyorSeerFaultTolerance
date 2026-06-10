@@ -84,7 +84,7 @@ token_to_modify = 3
 hidden_to_modify = 10
 injected_value = 50
 
-hook_handle = block.v_proj.register_forward_hook(
+hook_handle = block.ffn1.register_forward_hook(
     make_injection_hook(token_to_modify, hidden_to_modify, injected_value)
 )
 

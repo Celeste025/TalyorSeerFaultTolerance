@@ -20,81 +20,11 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(BASE_DIR, '..', '..', 'fault_injection'))
 # 把 utils 目录加入 sys.path
 sys.path.append(os.path.join(BASE_DIR, '..', '..', 'utils'))
-
+from common import *
 from FIassistant import FIassistant
 from Recorder import _recorder
 from HookManager import HookManager
 
-
-def sanitize_filename(s: str, max_length: int = 50) -> str:
-    """
-    将任意字符串转换成文件名安全的形式：
-    - 替换所有非字母数字的字符为下划线
-    - 限制长度，防止过长
-    """
-    sanitized = re.sub(r'[^a-zA-Z0-9_\-]', '_', s)
-    return sanitized[:max_length]
-
-def load_coco_captions(annotation_path="/data/home/jinqiwen/workspace/diffusion_fault_tolerance/ddim/datasets/coco17/annotations/captions_val2017.json",
-                        max_prompts=None):
-    """
-    从 COCO 2017 标注文件中加载验证集的 captions
-    
-    Args:
-        annotation_path: captions_val2017.json 的路径
-        max_prompts: 最大加载的prompt数量（用于测试，None表示加载全部）
-    
-    Returns:
-        prompts: list 包含所有caption的列表，按image_id排序
-        image_ids: list 对应每条prompt的image_id
-    """
-    print(f"Loading COCO captions from {annotation_path}...")
-    
-    with open(annotation_path, 'r') as f:
-        data = json.load(f)
-    
-    # 创建 image_id 到 captions 的映射
-    image_captions = {}
-    for ann in data['annotations']:
-        image_id = ann['image_id']
-        caption = ann['caption']
-        if image_id not in image_captions:
-            image_captions[image_id] = []
-        image_captions[image_id].append(caption)
-    
-    # 按 image_id 排序并选择第一个caption（标准做法）
-    sorted_image_ids = sorted(image_captions.keys())
-    prompts = []
-    image_ids = []
-    
-    for image_id in sorted_image_ids:
-        prompt = image_captions[image_id][0]
-        prompts.append(prompt)
-        image_ids.append(image_id)
-        
-        if max_prompts and len(prompts) >= max_prompts:
-            break
-    
-    print(f"Loaded {len(prompts)} COCO captions")
-    print(f"Example captions:")
-    for i in range(min(3, len(prompts))):
-        print(f"  {i+1}. {prompts[i]} (image_id={image_ids[i]})")
-    
-    return prompts, image_ids
-
-def make_result_folder_name(target: str, num_inference_steps: int, err_prob: float) -> str:
-    folder_name = f"target_{target}_step_{num_inference_steps}_err_prob_{err_prob}"
-    return os.path.join("results", folder_name, "images_gen")
-
-def save_run_params(folder: str, args: dict):
-    os.makedirs(folder, exist_ok=True)
-    json_path = os.path.join(folder, "run_params.json")
-    if not os.path.exists(json_path):
-        with open(json_path, "w") as f:
-            json.dump(args, f, indent=2)
-
-def truncate_filename(s: str, max_len: int = 40):
-    return s if len(s) <= max_len else s[:max_len]
 
 def main():
     parser = argparse.ArgumentParser()

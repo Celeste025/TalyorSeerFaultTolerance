@@ -1,19 +1,20 @@
-# import os
-# import torch
-# import numpy as np
-# import matplotlib.pyplot as plt
-# import pandas as pd
-# import gc
-# from tqdm import tqdm
-
+import os
+import torch
+import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
+import gc
+from tqdm import tqdm
+records_dir = "TaylorSeer-DiT/results/target_Skip_step_50_err_prob_0.0_h/images_gen/layer_inout"
 # # ====== 参数配置 ======
-# records_dir = "/data/home/jinqiwen/workspace/diffusion_fault_tolerance/TaylorSeerFaultTolerance/TaylorSeers-Diffusers/taylorseer_flux/results/Debug2_target_Skip_step_50_err_prob_0.0_h/images_gen/layer_inout"
+
 # save_dir = os.path.join(os.path.dirname(records_dir), "analysis_results")
 # print(save_dir)
 # os.makedirs(save_dir, exist_ok=True)
 
-# # ====== 获取 step 文件 ======
-# files = sorted([f for f in os.listdir(records_dir) if f.endswith(".pt")])
+# # ====== 获取并按数值排序 step 文件 ======
+# files = sorted([f for f in os.listdir(records_dir) if f.endswith(".pt")], 
+#                key=lambda x: int(x.split('_')[1].split('.')[0]))
 # print(f"找到 {len(files)} 个步骤文件")
 
 # if len(files) < 2:
@@ -26,6 +27,7 @@
 
 # # ====== 流式分析相邻 step 的 L1 输出变化 ======
 # for i in tqdm(range(len(files) - 1), desc="Processing steps"):
+#     print(f"Processing step files: {files[i]} and {files[i + 1]}")
 #     path_next = os.path.join(records_dir, files[i + 1])
 #     next_data = torch.load(path_next, map_location="cpu")
 
@@ -56,8 +58,10 @@
 #         l1_diffs[layer].append(diff)
 
 #     if (i + 1) % 5 == 0 or i == len(files) - 2:
+#         current_step = int(files[i].split('_')[1].split('.')[0])
+#         next_step = int(files[i + 1].split('_')[1].split('.')[0])
 #         example_layer = layer_names[0]
-#         print(f"[Step {i+1}/{len(files)-1}] 示例层 '{example_layer}' 当前 L1: {l1_diffs[example_layer][-1]:.6f}")
+#         print(f"[Step {current_step}→{next_step}] 示例层 '{example_layer}' 当前 L1: {l1_diffs[example_layer][-1]:.6f}")
 
 #     # 释放内存
 #     del prev_data
@@ -130,20 +134,18 @@ import gc
 from tqdm import tqdm
 
 # ====== 参数配置 ======
-records_dir = "/data/home/jinqiwen/workspace/diffusion_fault_tolerance/TaylorSeerFaultTolerance/TaylorSeers-Diffusers/taylorseer_flux/results/Debug2_target_Skip_step_50_err_prob_0.0_h/images_gen/layer_inout"
 save_dir = os.path.join(os.path.dirname(records_dir), "analysis_results")
 print(save_dir)
 os.makedirs(save_dir, exist_ok=True)
 
 # ====== 指定要分析的层名称 ======
-target_layer = "transformer_blocks.13"  # 请替换为实际的层名称
-
-# ====== 获取 step 文件 ======
-files = sorted([f for f in os.listdir(records_dir) if f.endswith(".pt")])
+target_layer = "blocks.2.attn.proj"
+# target_layer = "blocks.10.mlp.fc2"  # 请替换为实际的层名称
+# target_layer = "final_layer.adaLN_modulation.1"
+# ====== 获取并按数值排序 step 文件 ======
+files = sorted([f for f in os.listdir(records_dir) if f.endswith(".pt")], 
+               key=lambda x: int(x.split('_')[1].split('.')[0]))
 print(f"找到 {len(files)} 个步骤文件")
-
-if len(files) == 0:
-    raise ValueError("没有找到任何步骤文件。")
 
 def get_layer_tensor(layer_name, step_files, records_dir, max_steps=None):
     """
@@ -270,8 +272,8 @@ def plot_tensor_heatmaps(tensors, valid_steps, save_path, max_plots=20, vmin=Non
     
     # 如果没有手动设置上下限，自动计算合理的范围
     if vmin is None or vmax is None:
-        auto_vmin = all_values.quantile(0.01).item()  # 1%分位数
-        auto_vmax = all_values.quantile(0.99).item()  # 99%分位数
+        auto_vmin = all_values.quantile(0.0001).item()  # 1%分位数
+        auto_vmax = all_values.quantile(0.9999).item()  # 99%分位数
         
         if vmin is None:
             vmin = auto_vmin
@@ -537,7 +539,7 @@ if __name__ == "__main__":
     
     # 2. 绘制热图
     heatmap_path = os.path.join(save_dir, f"{target_layer}_heatmaps.png")
-    plot_tensor_heatmaps(tensors, valid_steps, heatmap_path, max_plots=25, vmin=-200, vmax=200, region=(0,0,200,200))
+    plot_tensor_heatmaps(tensors, valid_steps, heatmap_path, max_plots=25, region=(0,0,400,400))
     
     # 3. 绘制随机点趋势图
     trend_path = os.path.join(save_dir, f"{target_layer}_point_trends.png")

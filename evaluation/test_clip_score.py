@@ -45,17 +45,19 @@ def compute_clip_score_one_image(img_path, prompt=None, device="cuda"):
     score = (img_emb * text_emb).sum().item()
     return score
 
-def compute_clip_score_folder(folder_path, detail=False, device="cuda"):
+def compute_clip_score_folder(folder_path, detail=False, device="cuda", score_per_image=True):
     """
     批量计算文件夹下图片的 CLIP image-text score
     返回平均分
     """
+    filename_score_pair = {}
     scores = []
     for filename in os.listdir(folder_path):
         if filename.lower().endswith((".png", ".jpg", ".jpeg", ".webp")):
             img_path = os.path.join(folder_path, filename)
             try:
                 score = compute_clip_score_one_image(img_path, device=device)
+                filename_score_pair[filename] = score
                 scores.append(score)
                 if detail:
                     print(f"{filename}: {score:.4f}")
@@ -65,7 +67,12 @@ def compute_clip_score_folder(folder_path, detail=False, device="cuda"):
     if not scores:
         print("Warning: No valid images found in folder.")
         return 0.0
-
+    if score_per_image:
+        score_file = os.path.join(folder_path, "clip_scores.txt")
+        with open(score_file, 'w', encoding='utf-8') as f:
+            for filename, score in filename_score_pair.items():
+                if score is not None:
+                    f.write(f"{filename}: {score:.6f}\n")
     avg_score = sum(scores) / len(scores)
     return avg_score
 

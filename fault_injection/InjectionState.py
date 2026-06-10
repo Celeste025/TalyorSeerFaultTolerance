@@ -13,6 +13,11 @@ class InjectionState:
         self.global_args['protect'] = 'No'
         self.global_args['max_int'] = 0
         self.global_args['max_fp'] = 0
+        self.global_args['cache_order'] = -1
+        self.global_args['cache_quant'] = 8
+        self.global_args['cache_interval'] = 1
+        self.global_args['abft_block_size'] = 32
+        self.global_args['interval'] = 1
 
     def current_step(self):
         return self._current_step

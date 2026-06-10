@@ -54,12 +54,13 @@ def compute_lpips_score_one_image(img_path1, img_path2, net='vgg', use_gpu=True,
 
     return dist_score, heatmap_norm
 
-def compute_lpips_score_folder(ref_folder, gen_folder, net='vgg', use_gpu=True, detail=False, show_heatmap=False, save_heatmap_dir=None):
+def compute_lpips_score_folder(ref_folder, gen_folder, net='vgg', use_gpu=True, detail=False, show_heatmap=False, save_heatmap_dir=None, score_per_image=True):
     """
     批量计算生成文件夹与参考文件夹中同名图片的 LPIPS score
     返回平均 score
     """
     scores = []
+    filename_score_pair = {}
     for filename in os.listdir(gen_folder):
         if filename.lower().endswith((".png", ".jpg", ".jpeg", ".webp")):
             gen_path = os.path.join(gen_folder, filename)
@@ -76,6 +77,7 @@ def compute_lpips_score_folder(ref_folder, gen_folder, net='vgg', use_gpu=True, 
                 score, _ = compute_lpips_score_one_image(gen_path, ref_path, net=net, use_gpu=use_gpu,
                                                 show_heatmap=show_heatmap, save_dir=save_dir)
                 scores.append(score)
+                filename_score_pair[filename] = score
                 if detail:
                     print(f"{filename}: {score:.4f}")
             except Exception as e:
@@ -84,7 +86,12 @@ def compute_lpips_score_folder(ref_folder, gen_folder, net='vgg', use_gpu=True, 
     if not scores:
         print("Warning: No valid images found for comparison.")
         return 0.0
-
+    if score_per_image:
+        score_file = os.path.join(gen_folder, "lpips_scores.txt")
+        with open(score_file, 'w', encoding='utf-8') as f:
+            for filename, score in filename_score_pair.items():
+                if score is not None:
+                    f.write(f"{filename}: {score:.6f}\n")
     avg_score = sum(scores) / len(scores)
     return avg_score
 

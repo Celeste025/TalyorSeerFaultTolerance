@@ -190,7 +190,10 @@ def plot_from_excel(
                         all_group_values[k].add(v)
                 common_keys = [k for k,vset in all_group_values.items() if len(vset)==1]
 
-                colors = matplotlib.colormaps.get_cmap("tab20")(np.linspace(0, 1, len(grouped)))  # tab20 颜色表
+                colors = matplotlib.colormaps.get_cmap("tab20")(np.linspace(0, 1, len(grouped)))  
+                if len(grouped) > 20:
+                    print(f"⚠️ 可选变量 {opt_key} 的组合超过 20 种，改用turbo色板。")
+                    colors = matplotlib.colormaps.get_cmap("turbo")(np.linspace(0, 1, len(grouped)))
                 for idx, (group_vals, sub_df) in enumerate(grouped):
                     sub_df = sub_df.sort_values(by=x_key)
                     color = colors[idx]
@@ -260,6 +263,9 @@ def plot_from_excel(
         else:
             common_keys = []
         colors = matplotlib.colormaps.get_cmap("tab20")(np.linspace(0, 1, len(grouped)))
+        if len(grouped) > 20:
+            print(f"⚠️ 变量的组合超过 20 种，改用turbo色板。")
+            colors = matplotlib.colormaps.get_cmap("turbo")(np.linspace(0, 1, len(grouped)))
         for idx, (group_vals, sub_df) in enumerate(grouped):
             sub_df = sub_df.sort_values(by=x_key)
             color = colors[idx]
@@ -298,8 +304,12 @@ def plot_from_excel(
     print(f"✅ 所有图已生成到 {plot_dir}")
 
 
+import argparse
 if __name__ == "__main__":
-    root_folder = "TaylorSeers-Diffusers/taylorseer_flux/results_layers2"
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--root_folder", type=str, default="PixArt/results_protect", help="根文件夹路径")
+    args = parser.parse_args()
+    root_folder = args.root_folder
     jsons_to_excel(
         root_folder=root_folder,
         output_excel=os.path.join(root_folder, "summary.xlsx"),
@@ -307,11 +317,11 @@ if __name__ == "__main__":
         sort_by=["target", "num_inference_steps", "err_prob"]
     )
     plot_from_excel(
-        excel_path="TaylorSeers-Diffusers/taylorseer_flux/results_layers2/summary.xlsx",
-        x_keys=["target", "num_inference_steps", "err_prob"],
-        y_keys=["clip_score", "image_reward_score", "lpips_score"],
-        optional_keys=["bit", "target_layers"],
-        default_values={"bit": "-1", "target_layers": []},
+        excel_path= root_folder + "/summary.xlsx",
+        x_keys=["target", "num_inference_steps", "err_prob", "protect","cache_interval"],
+        y_keys=[ "image_reward_score", "lpips_score", "clip_score"],
+        optional_keys=["bit", "target_layers", "cache_quant", "abft_block_size","cache_order","max-order", "interval"],
+        default_values={"bit": "-1", "target_layers": [], "cache_quant":8, "protect":"No", "cache_order":-1, "abft_block_szie":32},
         log_x_keys=["err_prob"],
         vertical_x_keys=["target"]
     )

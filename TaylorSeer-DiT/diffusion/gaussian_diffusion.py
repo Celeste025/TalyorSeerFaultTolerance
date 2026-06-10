@@ -5,14 +5,21 @@
 
 
 import math
-
 import numpy as np
 import torch as th
 import enum
-
 from .diffusion_utils import discretized_gaussian_log_likelihood, normal_kl
 
+import sys
+import os
+import torch
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 from cache_functions import cache_init
+sys.path.append(os.path.join(BASE_DIR, '..', '..', 'fault_injection'))
+from InjectionState import _injection_state # 全局单例
+sys.path.append(os.path.join(BASE_DIR, '..', '..', 'utils'))
+from HookManager import _hook_manager # 全局单例
+
 
 def mean_flat(tensor):
     """
@@ -687,10 +694,18 @@ class GaussianDiffusion:
         # Initialization for ToCa     
         cache_dic, current = cache_init(model_kwargs=model_kwargs, num_steps=self.num_timesteps)
 
-        for i in indices:
+        for i in indices:  #注意i是逆序
             t = th.tensor([i] * shape[0], device=device)
             with th.no_grad():
                 current['step'] = i
+                # # import pdb; pdb.set_trace()
+                # if (_injection_state.global_args['hook_yes']) and (i == 30):
+                #     #修改img的某个值为50
+                #     # print(img.shape)
+                #     # print(torch.min(img), torch.max(img))
+                #     delta = 4
+                #     img[0, 0, 16, 16] += delta
+                #     img[0, 0, 32, 32] += delta
                 out = self.ddim_sample(
                     model,
                     img,
@@ -705,6 +720,20 @@ class GaussianDiffusion:
                 )
                 yield out
                 img = out["sample"]
+                ##### add injection and hook support here ####
+                step = _injection_state.current_step()
+                if _injection_state.global_args['hook_yes']:
+                    hook_save_dir = os.path.join(_injection_state.global_args['folder_path'], "layer_out")
+                    os.makedirs(hook_save_dir, exist_ok=True)
+                    hook_save_name = f"step_{step}.pt"
+                    torch.save(img.cpu(), os.path.join(hook_save_dir, hook_save_name))
+                    print(f"Saved img output at step {step} to {os.path.join(hook_save_dir, hook_save_name)}")
+                    # _hook_manager.save_records(save_dir=hook_save_dir, save_name=hook_save_name)
+                    
+                _injection_state.set_step(_injection_state.current_step() + 1)
+                # print(f"injection step set to {_injection_state.current_step()}.")
+                ##############################
+
         if cache_dic['test_FLOPs'] == True:
             print(cache_dic['flops'] * 1e-12, "TFLOPs")
 
